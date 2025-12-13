@@ -1,0 +1,41 @@
+[
+  {
+    "routeId": "r1",
+    "polyline": [
+      [-74.006, 40.7128],
+      [-74.005, 40.713],
+      [-74.004, 40.7135],
+      [-74.003, 40.714]
+    ],
+    "base_time_min": 45,
+    "distance_km": 18.5,
+    "segments": ["s1", "s2", "s3"],
+    "base_score": 71.7,
+    "weather_penalty": 0,
+    "crowd_penalty": 0,
+    "darkness_penalty": 0,
+    "construction_penalty": 0,
+    "final_safety_score": 71.7
+  },
+  {
+    "routeId": "r2",
+    "polyline": [
+      [-74.006, 40.7128],
+      [-74.007, 40.713],
+      [-74.008, 40.7135],
+      [-74.009, 40.714]
+    ],
+    "base_time_min": 52,
+    "distance_km": 22.3,
+    "segments": ["s5", "s6", "s7"],
+    "base_score": 73.3,
+    "weather_penalty": 0,
+    "crowd_penalty": 0,
+    "darkness_penalty": 0,
+    "construction_penalty": 0,
+    "final_safety_score": 73.3
+  }
+]
+
+
+

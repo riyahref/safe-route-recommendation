@@ -1,0 +1,20 @@
+[
+  {
+    "segmentId": "s1",
+    "density": "normal",
+    "value": 0.5
+  },
+  {
+    "segmentId": "s2",
+    "density": "high",
+    "value": 0.8
+  },
+  {
+    "segmentId": "s3",
+    "density": "low",
+    "value": 0.2
+  }
+]
+
+
+
