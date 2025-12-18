@@ -1,53 +1,42 @@
 import { useEffect, useRef, useState } from 'react';
-import maplibregl from "maplibre-gl";
-import 'maplibre-gl/dist/maplibre-gl.css';
-
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { useStore } from '../store/useStore';
 import RouteDetailsModal from './RouteDetailsModal';
 
-
-
 export default function MapView() {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<maplibregl.Map | null>(null);
-  const routesLayerRef = useRef<Record<string, { id: string }>>({});
-  const vehicleMarkerRef = useRef<maplibregl.Marker | null>(null);
-  const clickHandlerRef = useRef<((e: maplibregl.MapMouseEvent) => void) | null>(null);
-  const mouseEnterHandlersRef = useRef<Record<string, () => void>>({});
-  const mouseLeaveHandlersRef = useRef<Record<string, () => void>>({});
-  
+  const map = useRef<L.Map | null>(null);
+  const routeLayerRef = useRef<L.Polyline | null>(null);
+  const originMarkerRef = useRef<L.Marker | null>(null);
+  const destinationMarkerRef = useRef<L.Marker | null>(null);
   const [modalRouteId, setModalRouteId] = useState<string | null>(null);
 
-  const { routes, selectedRouteId, origin, destination, vehiclePosition, setSelectedRouteId } = useStore();
+  const { routes, selectedRouteId, origin, destination, setSelectedRouteId } = useStore();
 
+  // Initialize map
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
 
-    map.current = new maplibregl.Map({
-      container: mapContainer.current,
-      style: {
-        version: 8,
-        sources: {
-          'osm-tiles': {
-            type: 'raster',
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '© OpenStreetMap contributors'
-          }
-        },
-        layers: [
-          {
-            id: 'osm-tiles-layer',
-            type: 'raster',
-            source: 'osm-tiles',
-            minzoom: 0,
-            maxzoom: 22
-          }
-        ]
-      },
-      center: [-74.006, 40.7128],
+    // Initialize Leaflet map
+    map.current = L.map(mapContainer.current, {
+      center: [40.7128, -74.006], // Default center (NYC) - [lat, lng]
       zoom: 12,
+      zoomControl: true,
     });
+
+    // Add OpenStreetMap tiles
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map.current);
+
+    // Force map to invalidate size after a short delay to ensure container is rendered
+    setTimeout(() => {
+      if (map.current) {
+        map.current.invalidateSize();
+      }
+    }, 100);
 
     return () => {
       if (map.current) {
@@ -57,199 +46,161 @@ export default function MapView() {
     };
   }, []);
 
-  // Update routes on map
+  // Update route polyline
   useEffect(() => {
     if (!map.current) return;
 
-    const mapInstance = map.current;
-
-    // Remove existing click handler if it exists
-    if (clickHandlerRef.current) {
-      mapInstance.off('click', clickHandlerRef.current);
-      clickHandlerRef.current = null;
+    // Remove existing route if no routes
+    if (routes.length === 0) {
+      if (routeLayerRef.current) {
+        map.current.removeLayer(routeLayerRef.current);
+        routeLayerRef.current = null;
+      }
+      return;
     }
 
-    // Remove existing route layers and their event handlers
-    Object.values(routesLayerRef.current).forEach((layer) => {
-      const routeId = layer.id;
-      // Remove event handlers
-      if (mouseEnterHandlersRef.current[routeId]) {
-        mapInstance.off('mouseenter', routeId, mouseEnterHandlersRef.current[routeId]);
-      }
-      if (mouseLeaveHandlersRef.current[routeId]) {
-        mapInstance.off('mouseleave', routeId, mouseLeaveHandlersRef.current[routeId]);
-      }
-      // Remove layer and source
-      if (mapInstance.getLayer(routeId)) {
-        mapInstance.removeLayer(routeId);
-      }
-      if (mapInstance.getSource(routeId)) {
-        mapInstance.removeSource(routeId);
-      }
-    });
-    routesLayerRef.current = {};
-    mouseEnterHandlersRef.current = {};
-    mouseLeaveHandlersRef.current = {};
+    // Use first route or selected route
+    const routeToDisplay = routes.find(r => r.routeId === selectedRouteId) || routes[0];
 
-    // Add new routes
-    routes.forEach((route) => {
-      const routeId = route.routeId;
-      const isSelected = routeId === selectedRouteId;
-
-      // Determine color based on safety score
-      let color = '#ef4444'; // red
-      if (route.final_safety_score >= 70) {
-        color = '#22c55e'; // green
-      } else if (route.final_safety_score >= 50) {
-        color = '#eab308'; // yellow
-      }
-
-      const lineWidth = isSelected ? 5 : 3;
-
-      // Convert polyline to GeoJSON
-      const geojson = {
-        type: 'Feature' as const,
-        properties: {},
-        geometry: {
-          type: 'LineString' as const,
-          coordinates: route.polyline,
-        },
-      };
-
-      if (mapInstance.getSource(routeId)) {
-        const source = mapInstance.getSource(routeId);
-        if (source && source.type === 'geojson') {
-          (source as maplibregl.GeoJSONSource).setData(geojson);
-        }
-      } else {
-        mapInstance.addSource(routeId, {
-          type: 'geojson',
-          data: geojson,
-        });
-
-        mapInstance.addLayer({
-          id: routeId,
-          type: 'line',
-          source: routeId,
-          layout: {
-            'line-join': 'round',
-            'line-cap': 'round',
-          },
-          paint: {
-            'line-color': color,
-            'line-width': lineWidth,
-            'line-opacity': isSelected ? 1 : 0.7,
-          },
-        });
-      }
-
-      routesLayerRef.current[routeId] = {
-        id: routeId,
-        type: 'line',
-      } as { id: string; type: string };
-    });
-
-    // Add single click handler that filters by layer
-    const clickHandler = (e: maplibregl.MapMouseEvent) => {
-      const features = mapInstance.queryRenderedFeatures([e.point.x, e.point.y], {
-        layers: Object.keys(routesLayerRef.current),
-      });
-      if (features && features.length > 0) {
-        const feature = features[0];
-        if (feature.layer && feature.layer.id && routesLayerRef.current[feature.layer.id]) {
-          const routeId = feature.layer.id;
-        setSelectedRouteId(routeId);
-        setModalRouteId(routeId);
-        }
-      }
-    };
-    clickHandlerRef.current = clickHandler;
-    mapInstance.on('click', clickHandler);
-
-    // Add mouseenter/mouseleave handlers for each route layer
-    routes.forEach((route) => {
-      const routeId = route.routeId;
-      const mouseEnterHandler = () => {
-        mapInstance.getCanvas().style.cursor = 'pointer';
-      };
-      const mouseLeaveHandler = () => {
-        mapInstance.getCanvas().style.cursor = '';
-      };
-      
-      mouseEnterHandlersRef.current[routeId] = mouseEnterHandler;
-      mouseLeaveHandlersRef.current[routeId] = mouseLeaveHandler;
-      
-      mapInstance.on('mouseenter', routeId, mouseEnterHandler);
-      mapInstance.on('mouseleave', routeId, mouseLeaveHandler);
-    });
-
-    // Update selected route styling
-    routes.forEach((route) => {
-      const routeId = route.routeId;
-      const isSelected = routeId === selectedRouteId;
-      if (mapInstance.getLayer(routeId)) {
-        mapInstance.setPaintProperty(routeId, 'line-width', isSelected ? 5 : 3);
-        mapInstance.setPaintProperty(routeId, 'line-opacity', isSelected ? 1 : 0.7);
-      }
-    });
-
-    // Fit bounds to show all routes
-    if (routes.length > 0) {
-      const coordinates = routes.flatMap((r) => r.polyline);
-      if (coordinates.length > 0) {
-        const lngs = coordinates.map(c => (c as [number, number])[0]);
-        const lats = coordinates.map(c => (c as [number, number])[1]);
-        const bounds = [
-          [Math.min(...lngs), Math.min(...lats)],
-          [Math.max(...lngs), Math.max(...lats)]
-        ] as [[number, number], [number, number]];
-        mapInstance.fitBounds(bounds, { padding: 50 });
-      }
+    if (!routeToDisplay || !routeToDisplay.polyline || routeToDisplay.polyline.length === 0) {
+      console.warn('Route has no polyline data');
+      return;
     }
-  }, [routes, selectedRouteId, setSelectedRouteId]);
 
+    // Convert ORS coordinates [lng, lat] to Leaflet [lat, lng]
+    const leafletCoordinates: [number, number][] = routeToDisplay.polyline
+      .map((coord: number[]) => {
+        if (!Array.isArray(coord) || coord.length < 2) {
+          console.warn('Invalid coordinate:', coord);
+          return null;
+        }
+        // ORS returns [lng, lat], Leaflet needs [lat, lng]
+        return [coord[1], coord[0]] as [number, number];
+      })
+      .filter((coord): coord is [number, number] => coord !== null);
 
-  // Update origin/destination markers
-  useEffect(() => {
-    if (!map.current) return;
+    if (leafletCoordinates.length === 0) {
+      console.warn('No valid coordinates after conversion');
+      return;
+    }
 
-    // Remove existing markers
-    const markers = document.querySelectorAll('.maplibregl-marker');
-    markers.forEach((m) => m.remove());
+    // Remove existing route layer
+    if (routeLayerRef.current) {
+      map.current.removeLayer(routeLayerRef.current);
+      routeLayerRef.current = null;
+    }
 
-    // Add origin marker
+    // Create red polyline (matching ORS demo style)
+    const polyline = L.polyline(leafletCoordinates, {
+      color: '#ef4444', // red
+      weight: 5,
+      opacity: 0.9,
+      lineJoin: 'round',
+      lineCap: 'round',
+    }).addTo(map.current);
+
+    // Add click handler to select route
+    polyline.on('click', () => {
+      setSelectedRouteId(routeToDisplay.routeId);
+      setModalRouteId(routeToDisplay.routeId);
+    });
+
+    // Add hover effect
+    polyline.on('mouseover', () => {
+      if (map.current) {
+        map.current.getContainer().style.cursor = 'pointer';
+      }
+      polyline.setStyle({ weight: 6 });
+    });
+
+    polyline.on('mouseout', () => {
+      if (map.current) {
+        map.current.getContainer().style.cursor = '';
+      }
+      polyline.setStyle({ weight: 5 });
+    });
+
+    routeLayerRef.current = polyline;
+
+    // Fit map bounds to include route, origin, and destination
+    const bounds = L.latLngBounds(leafletCoordinates);
+    
+    // Add origin and destination to bounds if they exist
     if (origin) {
-      new maplibregl.Marker({ color: '#22c55e' })
-        .setLngLat(origin)
-        .setPopup(new maplibregl.Popup().setText('Origin'))
-        .addTo(map.current);
+      const [lng, lat] = origin;
+      bounds.extend([lat, lng]);
     }
-
-    // Add destination marker
     if (destination) {
-      new maplibregl.Marker({ color: '#ef4444' })
-        .setLngLat(destination)
-        .setPopup(new maplibregl.Popup().setText('Destination'))
-        .addTo(map.current);
+      const [lng, lat] = destination;
+      bounds.extend([lat, lng]);
     }
-  }, [origin, destination]);
 
-  // Update vehicle position marker
+    // Fit bounds with padding
+    map.current.fitBounds(bounds, { 
+      padding: [50, 50],
+      maxZoom: 16 // Prevent zooming in too much
+    });
+  }, [routes, selectedRouteId, setSelectedRouteId, origin, destination]);
+
+  // Update origin marker
   useEffect(() => {
-    if (!map.current || !vehiclePosition) return;
+    if (!map.current) return;
 
-    if (vehicleMarkerRef.current) {
-      vehicleMarkerRef.current.setLngLat([vehiclePosition.lng, vehiclePosition.lat]);
-    } else {
-      vehicleMarkerRef.current = new maplibregl.Marker({ color: '#3b82f6' })
-        .setLngLat([vehiclePosition.lng, vehiclePosition.lat])
-        .addTo(map.current);
+    // Remove existing origin marker
+    if (originMarkerRef.current) {
+      map.current.removeLayer(originMarkerRef.current);
+      originMarkerRef.current = null;
     }
-  }, [vehiclePosition]);
+
+    // Add origin marker if origin exists
+    if (origin) {
+      // Convert [lng, lat] to [lat, lng] for Leaflet
+      const [lng, lat] = origin;
+      const greenIcon = L.divIcon({
+        className: 'custom-marker',
+        html: `<div style="background-color: #22c55e; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+      const marker = L.marker([lat, lng], { icon: greenIcon })
+        .bindPopup('Origin')
+        .addTo(map.current);
+
+      originMarkerRef.current = marker;
+    }
+  }, [origin]);
+
+  // Update destination marker
+  useEffect(() => {
+    if (!map.current) return;
+
+    // Remove existing destination marker
+    if (destinationMarkerRef.current) {
+      map.current.removeLayer(destinationMarkerRef.current);
+      destinationMarkerRef.current = null;
+    }
+
+    // Add destination marker if destination exists
+    if (destination) {
+      // Convert [lng, lat] to [lat, lng] for Leaflet
+      const [lng, lat] = destination;
+      const redIcon = L.divIcon({
+        className: 'custom-marker',
+        html: `<div style="background-color: #ef4444; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+      const marker = L.marker([lat, lng], { icon: redIcon })
+        .bindPopup('Destination')
+        .addTo(map.current);
+
+      destinationMarkerRef.current = marker;
+    }
+  }, [destination]);
 
   return (
     <>
-      <div ref={mapContainer} className="w-full h-full" />
+      <div ref={mapContainer} className="w-full h-full" id="map" />
       {modalRouteId && (
         <RouteDetailsModal
           routeId={modalRouteId}

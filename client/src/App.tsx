@@ -6,6 +6,9 @@ import RouteComparisonPanel from './components/RouteComparisonPanel';
 import DevControlsPanel from './components/DevControlsPanel';
 import KPIPanel from './components/KPIPanel';
 
+console.log("Frontend API URL =", import.meta.env.VITE_API_URL);
+
+
 function App() {
   useEffect(() => {
     connectWebSocket();

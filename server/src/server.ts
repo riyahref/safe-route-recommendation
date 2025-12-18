@@ -1,3 +1,4 @@
+import 'dotenv/config'; // Load environment variables from .env file
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import app, { setupEventsRoute } from './app';
@@ -27,5 +28,9 @@ setupSocket(io, mockDataService);
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
   console.log(`📡 WebSocket server ready`);
+  console.log(`🔍 [Backend] API Routes available:`);
+  console.log(`   - POST http://localhost:${PORT}/api/routes`);
+  console.log(`   - GET  http://localhost:${PORT}/api/weather`);
+  console.log(`   - GET  http://localhost:${PORT}/api/crowd`);
 });
 

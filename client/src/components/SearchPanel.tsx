@@ -18,8 +18,9 @@ export default function SearchPanel() {
         return;
       }
 
-      const origin: [number, number] = [lat1, lng1];
-      const dest: [number, number] = [lat2, lng2];
+      // Store coordinates as [lng, lat] for map rendering
+      const origin: [number, number] = [lng1, lat1];
+      const dest: [number, number] = [lng2, lat2];
 
       setOrigin(origin);
       setDestination(dest);

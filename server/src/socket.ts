@@ -4,6 +4,7 @@ import { mockDataService } from './services/mockData';
 /**
  * Setup WebSocket realtime updates
  * Handles connections and emits periodic updates for weather, crowd, and vehicle position
+ * No segment-based logic - uses global modifiers
  */
 export function setupSocket(io: Server, mockDataService: any): void {
   io.on('connection', (socket) => {
@@ -18,18 +19,14 @@ export function setupSocket(io: Server, mockDataService: any): void {
       ends_at: weather.endsAt,
     });
 
-    // Send initial crowd densities
-    const segments = mockDataService.getSegments();
-    segments.forEach((seg: any) => {
-      const crowd = mockDataService.getCrowdDensity(seg.segmentId);
-      if (crowd) {
-        socket.emit('crowd_update', {
-          segmentId: crowd.segmentId,
-          density: crowd.density,
-          value: crowd.value,
-        });
-      }
-    });
+    // Send initial global crowd penalty (if any)
+    const crowdPenalty = mockDataService.getGlobalCrowdPenalty();
+    if (crowdPenalty > 0) {
+      socket.emit('crowd_update', {
+        global: true,
+        penalty: crowdPenalty,
+      });
+    }
 
     socket.on('disconnect', () => {
       console.log('Client disconnected:', socket.id);
@@ -37,7 +34,7 @@ export function setupSocket(io: Server, mockDataService: any): void {
   });
 
   // Simulate vehicle position updates every 5 seconds
-  let mockVehiclePosition = { lat: 40.7128, lng: -74.0060 };
+  let mockVehiclePosition = { lat: 19.0760, lng: 72.8777 }; // Default to Mumbai
   setInterval(() => {
     // Simulate slight movement
     mockVehiclePosition.lat += (Math.random() - 0.5) * 0.001;

@@ -1,16 +1,8 @@
 /**
  * Mock Data Service
- * Generates static road segments, weather schedules, and crowd density patterns
+ * Generates smooth Bezier-curve routes between origin and destination
+ * No segments - only clean, Google Maps-like route variations
  */
-
-export interface RoadSegment {
-  segmentId: string;
-  polyline: number[][]; // Array of [lng, lat] coordinates
-  baseSafetyScore: number; // 0-100, higher is safer
-  lighting: 'good' | 'moderate' | 'poor';
-  cctv: boolean;
-  isolationLevel: 'low' | 'medium' | 'high';
-}
 
 export interface WeatherState {
   condition: 'clear' | 'rain' | 'storm' | 'fog';
@@ -19,89 +11,170 @@ export interface WeatherState {
   endsAt: number; // Unix timestamp
 }
 
-export interface CrowdDensity {
-  segmentId: string;
-  density: 'low' | 'normal' | 'high';
-  value: number; // 0-1
-}
-
 export interface Route {
   routeId: string;
-  polyline: number[][]; // Array of [lng, lat] coordinates
+  polyline: number[][]; // Array of [lng, lat] coordinates - smooth Bezier curve
   base_time_min: number;
   distance_km: number;
-  segments: string[];
+  segments: string[]; // Empty array - kept for API compatibility but not used
+  // Safety scores will be added by safetyScore service
+  base_score?: number;
+  weather_penalty?: number;
+  crowd_penalty?: number;
+  darkness_penalty?: number;
+  construction_penalty?: number;
+  final_safety_score?: number;
 }
 
 class MockDataService {
-  private segments: Map<string, RoadSegment> = new Map();
   private weatherState: WeatherState = {
     condition: 'clear',
     intensity: 0,
     startsAt: Date.now() / 1000,
     endsAt: Date.now() / 1000 + 3600,
   };
-  private crowdDensities: Map<string, CrowdDensity> = new Map();
-  private constructionSegments: Set<string> = new Set();
+  
+  // Global modifiers (not per-segment)
+  private globalCrowdPenalty: number = 0; // Applied to all routes
+  private globalConstructionPenalty: number = 0; // Applied to all routes
 
   constructor() {
-    this.initializeSegments();
-    this.initializeCrowdDensities();
+    // No initialization needed - routes generated on demand
   }
 
-  private initializeSegments() {
-    // Generate 8 road segments with varying safety characteristics
-    const baseLat = 40.7128; // NYC area
-    const baseLng = -74.0060;
+  /**
+   * Generate a smooth quadratic Bezier curve between three points
+   * @param start Start point [lng, lat]
+   * @param control Control point [lng, lat] 
+   * @param end End point [lng, lat]
+   * @param samples Number of points to generate (default 80 for smooth curves)
+   * @returns Array of [lng, lat] coordinates
+   */
+  private bezierCurve(
+    start: [number, number],
+    control: [number, number],
+    end: [number, number],
+    samples: number = 80
+  ): number[][] {
+    const curve: number[][] = [];
 
-    const segmentConfigs = [
-      { id: 's1', offset: [0, 0], safety: 85, lighting: 'good' as const, cctv: true, isolation: 'low' as const },
-      { id: 's2', offset: [0.01, 0.01], safety: 70, lighting: 'moderate' as const, cctv: true, isolation: 'low' as const },
-      { id: 's3', offset: [0.02, 0], safety: 60, lighting: 'moderate' as const, cctv: false, isolation: 'medium' as const },
-      { id: 's4', offset: [0.01, -0.01], safety: 50, lighting: 'poor' as const, cctv: false, isolation: 'high' as const },
-      { id: 's5', offset: [-0.01, 0.01], safety: 80, lighting: 'good' as const, cctv: true, isolation: 'low' as const },
-      { id: 's6', offset: [-0.02, 0], safety: 65, lighting: 'moderate' as const, cctv: false, isolation: 'medium' as const },
-      { id: 's7', offset: [-0.01, -0.01], safety: 75, lighting: 'good' as const, cctv: true, isolation: 'low' as const },
-      { id: 's8', offset: [0, -0.02], safety: 55, lighting: 'poor' as const, cctv: false, isolation: 'high' as const },
-    ];
+    for (let i = 0; i <= samples; i++) {
+      const t = i / samples;
+      // Quadratic Bezier formula: (1-t)²P₀ + 2(1-t)tP₁ + t²P₂
+      const lng =
+        (1 - t) * (1 - t) * start[0] +
+        2 * (1 - t) * t * control[0] +
+        t * t * end[0];
 
-    segmentConfigs.forEach((config) => {
-      // Create a simple polyline for each segment (2 points)
-      const polyline: number[][] = [
-        [baseLng + config.offset[0], baseLat + config.offset[1]],
-        [baseLng + config.offset[0] + 0.005, baseLat + config.offset[1] + 0.005],
+      const lat =
+        (1 - t) * (1 - t) * start[1] +
+        2 * (1 - t) * t * control[1] +
+        t * t * end[1];
+
+      curve.push([lng, lat]);
+    }
+
+    return curve;
+  }
+
+  /**
+   * Calculate distance between two points in kilometers
+   * Uses Haversine formula approximation
+   */
+  private calculateDistance(
+    point1: [number, number],
+    point2: [number, number]
+  ): number {
+    const [lng1, lat1] = point1;
+    const [lng2, lat2] = point2;
+    
+    const dLng = lng2 - lng1;
+    const dLat = lat2 - lat1;
+    
+    // Rough approximation: 1 degree ≈ 111 km
+    const distance = Math.sqrt(dLng * dLng + dLat * dLat) * 111;
+    
+    return distance;
+  }
+
+  /**
+   * Generate 3-4 smooth route variations using Bezier curves
+   * Creates Google Maps-like alternate routes (left curve, center, right curve, optional detour)
+   */
+  generateRoutes(
+    origin: [number, number],
+    dest: [number, number]
+  ): Route[] {
+    const routes: Route[] = [];
+    const [oLng, oLat] = origin;
+    const [dLng, dLat] = dest;
+
+    // Calculate midpoint
+    const midLng = (oLng + dLng) / 2;
+    const midLat = (oLat + dLat) / 2;
+
+    // Calculate perpendicular vector for offsetting control points
+    const dx = dLng - oLng;
+    const dy = dLat - oLat;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // Perpendicular vector (rotate 90 degrees)
+    const perpLng = -dy / distance;
+    const perpLat = dx / distance;
+
+    // Generate 3-4 route variations
+    const routeCount = Math.floor(Math.random() * 2) + 3; // 3-4 routes
+    
+    // Base offset magnitude (adjusts curve intensity)
+    const baseOffset = distance * 0.15; // 15% of straight-line distance
+
+    for (let i = 0; i < routeCount; i++) {
+      // Create different control point offsets
+      let offsetMultiplier: number;
+      
+      if (routeCount === 3) {
+        // Left curve, center, right curve
+        offsetMultiplier = (i - 1) * 0.5; // -0.5, 0, 0.5
+      } else {
+        // 4 routes: left, slight left, slight right, right
+        offsetMultiplier = (i - 1.5) * 0.4; // -0.6, -0.2, 0.2, 0.6
+      }
+
+      // Control point = midpoint + perpendicular offset
+      const control: [number, number] = [
+        midLng + perpLng * baseOffset * offsetMultiplier,
+        midLat + perpLat * baseOffset * offsetMultiplier,
       ];
 
-      this.segments.set(config.id, {
-        segmentId: config.id,
+      // Generate smooth Bezier curve
+      const polyline = this.bezierCurve(origin, control, dest, 80);
+
+      // Calculate distance (sum of distances between consecutive points for accuracy)
+      let totalDistance = 0;
+      for (let j = 0; j < polyline.length - 1; j++) {
+        totalDistance += this.calculateDistance(
+          polyline[j] as [number, number],
+          polyline[j + 1] as [number, number]
+        );
+      }
+
+      // Estimate travel time (rough: 2-3 minutes per km depending on route variation)
+      const baseTimePerKm = 2.5 + (Math.abs(offsetMultiplier) * 0.5); // Curvier routes take slightly longer
+      const baseTime = Math.round(totalDistance * baseTimePerKm);
+
+      routes.push({
+        routeId: `route_${i + 1}`,
         polyline,
-        baseSafetyScore: config.safety,
-        lighting: config.lighting,
-        cctv: config.cctv,
-        isolationLevel: config.isolation,
+        base_time_min: baseTime,
+        distance_km: Math.round(totalDistance * 10) / 10,
+        segments: [], // Empty - not used anymore
       });
-    });
+    }
+
+    return routes;
   }
 
-  private initializeCrowdDensities() {
-    // Initialize all segments with normal crowd density
-    this.segments.forEach((segment) => {
-      this.crowdDensities.set(segment.segmentId, {
-        segmentId: segment.segmentId,
-        density: 'normal',
-        value: 0.5,
-      });
-    });
-  }
-
-  getSegments(): RoadSegment[] {
-    return Array.from(this.segments.values());
-  }
-
-  getSegment(segmentId: string): RoadSegment | undefined {
-    return this.segments.get(segmentId);
-  }
-
+  // Weather state management
   getWeatherState(): WeatherState {
     return { ...this.weatherState };
   }
@@ -111,96 +184,41 @@ class MockDataService {
       condition,
       intensity,
       startsAt: Date.now() / 1000,
-      endsAt: Date.now() / 1000 + 3600, // 1 hour default
+      endsAt: Date.now() / 1000 + 3600,
     };
   }
 
-  getCrowdDensity(segmentId: string): CrowdDensity | undefined {
-    return this.crowdDensities.get(segmentId);
+  // Global crowd penalty (applied to all routes)
+  getGlobalCrowdPenalty(): number {
+    return this.globalCrowdPenalty;
   }
 
-  getCrowdDensities(segmentIds: string[]): CrowdDensity[] {
-    return segmentIds
-      .map((id) => this.crowdDensities.get(id))
-      .filter((d): d is CrowdDensity => d !== undefined);
-  }
-
-  setCrowdDensity(segmentId: string, density: CrowdDensity['density'], value: number) {
-    this.crowdDensities.set(segmentId, {
-      segmentId,
-      density,
-      value,
-    });
+  setGlobalCrowdPenalty(penalty: number) {
+    this.globalCrowdPenalty = Math.max(0, Math.min(30, penalty)); // Clamp 0-30
   }
 
   triggerCrowdSpike() {
-    // Randomly spike crowd on 2-3 segments
-    const segmentIds = Array.from(this.segments.keys());
-    const spikeCount = Math.floor(Math.random() * 2) + 2;
-    const shuffled = segmentIds.sort(() => 0.5 - Math.random());
-    
-    shuffled.slice(0, spikeCount).forEach((id) => {
-      this.setCrowdDensity(id, 'high', 0.8 + Math.random() * 0.2);
-    });
+    // Set a global crowd penalty that affects all routes
+    // High crowd = penalty (traffic, congestion)
+    this.globalCrowdPenalty = 15 + Math.random() * 10; // 15-25 penalty
   }
 
-  toggleConstruction(segmentId: string) {
-    if (this.constructionSegments.has(segmentId)) {
-      this.constructionSegments.delete(segmentId);
-    } else {
-      this.constructionSegments.add(segmentId);
-    }
+  clearCrowdSpike() {
+    this.globalCrowdPenalty = 0;
   }
 
-  hasConstruction(segmentId: string): boolean {
-    return this.constructionSegments.has(segmentId);
+  // Global construction penalty
+  getGlobalConstructionPenalty(): number {
+    return this.globalConstructionPenalty;
   }
 
-  generateRoutes(origin: [number, number], dest: [number, number]): Route[] {
-    // Generate 2-4 route options between origin and destination
-    const routeCount = Math.floor(Math.random() * 3) + 2; // 2-4 routes
-    const routes: Route[] = [];
+  setGlobalConstructionPenalty(penalty: number) {
+    this.globalConstructionPenalty = Math.max(0, Math.min(20, penalty)); // Clamp 0-20
+  }
 
-    // Get available segments
-    const availableSegments = Array.from(this.segments.keys());
-
-    for (let i = 0; i < routeCount; i++) {
-      // Create a route using 2-4 segments
-      const segmentCount = Math.floor(Math.random() * 3) + 2;
-      const routeSegments = availableSegments
-        .sort(() => 0.5 - Math.random())
-        .slice(0, segmentCount);
-
-      // Build polyline from origin through segments to destination
-      const polyline: number[][] = [origin];
-      
-      routeSegments.forEach((segId) => {
-        const segment = this.segments.get(segId);
-        if (segment) {
-          polyline.push(...segment.polyline);
-        }
-      });
-      
-      polyline.push(dest);
-
-      // Calculate base time and distance (simplified)
-      const baseTime = 30 + Math.random() * 30; // 30-60 minutes
-      const distance = 10 + Math.random() * 15; // 10-25 km
-
-      routes.push({
-        routeId: `r${i + 1}`,
-        polyline,
-        base_time_min: Math.round(baseTime),
-        distance_km: Math.round(distance * 10) / 10,
-        segments: routeSegments,
-      });
-    }
-
-    return routes;
+  toggleConstruction(active: boolean) {
+    this.globalConstructionPenalty = active ? 15 : 0;
   }
 }
 
 export const mockDataService = new MockDataService();
-
-
-

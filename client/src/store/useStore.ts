@@ -22,9 +22,11 @@ export interface WeatherState {
 }
 
 export interface CrowdDensity {
-  segmentId: string;
-  density: 'low' | 'normal' | 'high';
-  value: number;
+  global?: boolean;
+  penalty?: number;
+  segmentId?: string; // Optional for backward compatibility
+  density?: 'low' | 'normal' | 'high';
+  value?: number;
 }
 
 export interface VehiclePosition {
@@ -80,8 +82,10 @@ export const useStore = create<AppState & AppActions>((set: any) => ({
   setWeather: (weather: WeatherState) => set({ weather }),
   setCrowdDensity: (density: CrowdDensity) =>
     set((state: AppState) => {
+      // For global updates, store with a special key
       const newMap = new Map(state.crowdDensities);
-      newMap.set(density.segmentId, density);
+      const key = density.global ? 'global' : (density.segmentId || 'global');
+      newMap.set(key, density);
       return { crowdDensities: newMap };
     }),
   setVehiclePosition: (vehiclePosition: VehiclePosition) => set({ vehiclePosition }),

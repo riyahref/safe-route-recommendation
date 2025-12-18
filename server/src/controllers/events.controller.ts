@@ -6,10 +6,11 @@ import { mockDataService } from '../services/mockData';
  * POST /api/events
  * Accepts dev events to inject (e.g., storm, crowd_spike, construction)
  * Returns updated state and emits WebSocket events
+ * No segment-based logic - uses global modifiers
  */
 export async function handleEvent(req: Request, res: Response, io: Server): Promise<void> {
   try {
-    const { event, segmentId } = req.body;
+    const { event, active } = req.body;
 
     switch (event) {
       case 'startStorm':
@@ -22,32 +23,63 @@ export async function handleEvent(req: Request, res: Response, io: Server): Prom
         });
         break;
 
+      case 'startRain':
+        mockDataService.setWeatherState('rain', 0.6);
+        io.emit('weather_update', {
+          condition: 'rain',
+          intensity: 0.6,
+          starts_at: Date.now() / 1000,
+          ends_at: Date.now() / 1000 + 3600,
+        });
+        break;
+
+      case 'startFog':
+        mockDataService.setWeatherState('fog', 0.7);
+        io.emit('weather_update', {
+          condition: 'fog',
+          intensity: 0.7,
+          starts_at: Date.now() / 1000,
+          ends_at: Date.now() / 1000 + 3600,
+        });
+        break;
+
+      case 'clearWeather':
+        mockDataService.setWeatherState('clear', 0);
+        io.emit('weather_update', {
+          condition: 'clear',
+          intensity: 0,
+          starts_at: Date.now() / 1000,
+          ends_at: Date.now() / 1000 + 3600,
+        });
+        break;
+
       case 'crowdSpike':
+        // Trigger global crowd penalty (affects all routes)
         mockDataService.triggerCrowdSpike();
-        // Emit crowd updates for all segments
-        const segments = mockDataService.getSegments();
-        segments.forEach((seg: any) => {
-          const crowd = mockDataService.getCrowdDensity(seg.segmentId);
-          if (crowd) {
-            io.emit('crowd_update', {
-              segmentId: crowd.segmentId,
-              density: crowd.density,
-              value: crowd.value,
-            });
-          }
+        const crowdPenalty = mockDataService.getGlobalCrowdPenalty();
+        io.emit('crowd_update', {
+          global: true,
+          penalty: crowdPenalty,
+        });
+        break;
+
+      case 'clearCrowdSpike':
+        mockDataService.clearCrowdSpike();
+        io.emit('crowd_update', {
+          global: true,
+          penalty: 0,
         });
         break;
 
       case 'toggleConstruction':
-        if (!segmentId) {
-          res.status(400).json({ error: 'segmentId required for toggleConstruction' });
-          return;
-        }
-        mockDataService.toggleConstruction(segmentId);
+        // Toggle global construction penalty
+        const isActive = active !== undefined ? active : mockDataService.getGlobalConstructionPenalty() === 0;
+        mockDataService.toggleConstruction(isActive);
+        const constructionPenalty = mockDataService.getGlobalConstructionPenalty();
         io.emit('event_applied', {
           event: 'construction',
-          segmentId,
-          active: mockDataService.hasConstruction(segmentId),
+          active: isActive,
+          penalty: constructionPenalty,
         });
         break;
 
@@ -58,7 +90,6 @@ export async function handleEvent(req: Request, res: Response, io: Server): Prom
 
     io.emit('event_applied', {
       event,
-      segmentId: segmentId || null,
       timestamp: Date.now() / 1000,
     });
 
@@ -72,4 +103,3 @@ export async function handleEvent(req: Request, res: Response, io: Server): Prom
     res.status(500).json({ error: 'Internal server error' });
   }
 }
-
