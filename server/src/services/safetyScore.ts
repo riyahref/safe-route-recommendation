@@ -1,15 +1,14 @@
 /**
- * Safety Scoring Service
- * Calculates route safety scores based on weather, crowd, and construction penalties
+ * Safety Scoring Service - Hackathon MVP
+ * Calculates route safety scores based on user-controlled safety layers
  * 
- * Formula: final_safety_score = 100 - (weather_penalty + crowd_penalty + construction_penalty)
+ * Formula: final_safety_score = 100 - (enabled_penalties) - distance_penalty
  * 
- * All penalties are additive and reduce the safety score.
+ * Penalties are only applied if corresponding safety toggle is enabled.
  */
 
 import { Route } from './mockData';
 import { WeatherState } from './mockData';
-import { mockDataService } from './mockData';
 
 export interface SafetyScoreResult {
   base_score: number;
@@ -20,68 +19,99 @@ export interface SafetyScoreResult {
   final_safety_score: number;
 }
 
+export interface RealWeatherData {
+  temperature: number;
+  precipitation: number;
+  weatherCode: number;
+  windSpeed: number;
+  visibility: number;
+  condition: string;
+  penalty: number;
+}
+
 export interface UserProfile {
   vehicleType: 'car' | 'truck' | 'bike' | 'pedestrian';
   timeOfDay: 'day' | 'night';
 }
 
+export interface SafetyToggles {
+  crowdSpike?: boolean;
+  darkness?: boolean;
+  construction?: boolean;
+  storm?: boolean;
+}
+
 /**
- * Calculate safety score for a route
+ * Calculate safety score for a route with user-controlled safety layers
  * 
- * @param route - The route to score
- * @param weather - Current weather state
+ * @param route - The route to score (contains distance_km and polyline)
+ * @param weather - Current weather state (legacy, kept for compatibility)
  * @param profile - User profile (vehicle type, time of day)
+ * @param toggles - User-controlled safety toggles
+ * @param realWeather - Real weather data from Open-Meteo API (optional)
  * @returns Safety score breakdown and final score
  */
 export function computeSafetyScore(
   route: Route,
   weather: WeatherState,
-  profile: UserProfile
+  profile: UserProfile,
+  toggles: SafetyToggles = {},
+  realWeather?: RealWeatherData
 ): SafetyScoreResult {
   // Base score starts at 100 (perfect safety)
-  // Penalties reduce from this base
   const base_score = 100;
+  
+  const distanceKm = route.distance_km;
+  const polylineLength = route.polyline?.length || 0;
 
-  // Weather penalty calculation
-  // Clear: 0, Rain: 10-20, Storm: 25-40, Fog: 15-25
-  let weather_penalty = 0;
-  if (weather.condition === 'rain') {
-    weather_penalty = 10 + weather.intensity * 10; // 10-20
-  } else if (weather.condition === 'storm') {
-    weather_penalty = 25 + weather.intensity * 15; // 25-40
-  } else if (weather.condition === 'fog') {
-    weather_penalty = 15 + weather.intensity * 10; // 15-25
+  // 1. Crowd Penalty (only if toggle enabled)
+  // If route distance > 7km → 20, Else → 10
+  let crowd_penalty = 0;
+  if (toggles.crowdSpike) {
+    crowd_penalty = distanceKm > 7 ? 20 : 10;
   }
 
-  // Crowd penalty (global - affects all routes)
-  // High crowd = traffic congestion = safety penalty
-  const crowd_penalty = mockDataService.getGlobalCrowdPenalty();
-
-  // Darkness penalty (only applies at night)
+  // 2. Darkness Penalty (only if toggle enabled)
+  // If timeOfDay === "night":
+  //   If distance > 6km → 15, Else → 8
+  // Else → 0
   let darkness_penalty = 0;
-  if (profile.timeOfDay === 'night') {
-    // Penalty varies by vehicle type
-    if (profile.vehicleType === 'pedestrian') {
-      darkness_penalty = 20; // Higher penalty for pedestrians at night
-    } else if (profile.vehicleType === 'bike') {
-      darkness_penalty = 15;
-    } else if (profile.vehicleType === 'truck') {
-      darkness_penalty = 12; // Lower for trucks (better lighting)
+  if (toggles.darkness) {
+    if (profile.timeOfDay === 'night') {
+      darkness_penalty = distanceKm > 6 ? 15 : 8;
     } else {
-      darkness_penalty = 10; // Car
+      darkness_penalty = 0;
     }
   }
 
-  // Construction penalty (global - affects all routes)
-  const construction_penalty = mockDataService.getGlobalConstructionPenalty();
+  // 3. Construction Penalty (only if toggle enabled)
+  // If polyline length > 150 points → 15, Else → 5
+  let construction_penalty = 0;
+  if (toggles.construction) {
+    construction_penalty = polylineLength > 150 ? 15 : 5;
+  }
+
+  // 4. Weather Penalty - Use REAL weather data if available, otherwise use toggle
+  let weather_penalty = 0;
+  if (realWeather) {
+    // Use real weather penalty from Open-Meteo API
+    weather_penalty = realWeather.penalty;
+  } else if (toggles.storm) {
+    // Fallback to toggle-based penalty if no real weather data
+    weather_penalty = distanceKm > 7 ? 25 : 12;
+  }
+
+  // Distance penalty (always applied)
+  // distancePenalty = distanceKm * 2
+  const distance_penalty = distanceKm * 2;
 
   // Calculate final safety score
-  // Formula: 100 - (weather_penalty + crowd_penalty + darkness_penalty + construction_penalty)
+  // Formula: 100 - (enabled_penalties) - distance_penalty - real_weather_penalty
   const final_safety_score = Math.max(
     0,
     Math.min(
       100,
-      base_score - weather_penalty - crowd_penalty - darkness_penalty - construction_penalty
+      base_score - crowd_penalty - darkness_penalty - construction_penalty - weather_penalty - distance_penalty
     )
   );
 
@@ -94,3 +124,4 @@ export function computeSafetyScore(
     final_safety_score: Math.round(final_safety_score * 10) / 10,
   };
 }
+

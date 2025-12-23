@@ -12,6 +12,19 @@ export interface RouteResponse {
   darkness_penalty: number;
   construction_penalty: number;
   final_safety_score: number;
+  weather?: {
+    temperature: number;
+    condition: string;
+    precipitation: number;
+    windSpeed: number;
+    visibility: number;
+    hourly?: {
+      time: string;
+      temperature: number;
+      condition: string;
+      weatherCode: number;
+    }[];
+  };
 }
 
 export interface WeatherResponse {
@@ -39,7 +52,13 @@ export async function fetchRoutes(
   origin: [number, number], // [lng, lat]
   dest: [number, number], // [lng, lat]
   vehicleType: string,
-  timeOfDay: string
+  timeOfDay: string,
+  safetyToggles?: {
+    crowdSpike?: boolean;
+    darkness?: boolean;
+    construction?: boolean;
+    storm?: boolean;
+  }
 ): Promise<RouteResponse[]> {
   try {
     const url = `${API_URL}/api/routes`;
@@ -48,6 +67,7 @@ export async function fetchRoutes(
       destination: dest, // Already in [lng, lat] format
       vehicleType,
       timeOfDay,
+      safetyToggles: safetyToggles || {},
     };
     
     // 🔍 DEBUG: Log the full request

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { mockDataService } from '../services/mockData';
 import { computeSafetyScore } from '../services/safetyScore';
 import { getORSRoutes } from '../services/openRouteService';
+import { getWeatherData, calculateRouteMidpoint } from '../services/weatherService';
 
 /**
  * POST /api/routes
@@ -13,7 +14,18 @@ export async function getRoutes(req: Request, res: Response): Promise<void> {
     console.log('🔍 [Backend Controller] getRoutes called');
     console.log('🔍 [Backend Controller] Request body:', JSON.stringify(req.body, null, 2));
     
-    const { origin, destination, vehicleType = 'car', timeOfDay = 'day' } = req.body;
+    const { 
+      origin, 
+      destination, 
+      vehicleType = 'car', 
+      timeOfDay = 'day',
+      safetyToggles = {
+        crowdSpike: false,
+        darkness: false,
+        construction: false,
+        storm: false,
+      }
+    } = req.body;
 
     if (!origin || !destination) {
       console.log('❌ [Backend Controller] Missing origin or destination');
@@ -65,28 +77,49 @@ export async function getRoutes(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Get current weather state for safety scoring
+    // Get current weather state for safety scoring (legacy compatibility)
     const weather = mockDataService.getWeatherState();
+
+    // Fetch real weather data for route midpoint
+    const midpoint = calculateRouteMidpoint(originCoord, destCoord);
+    let realWeather;
+    try {
+      realWeather = await getWeatherData(midpoint[0], midpoint[1]);
+      console.log(`🌤️ [Controller] Real weather: ${realWeather.condition}, temp: ${realWeather.temperature}°C, penalty: ${realWeather.penalty}`);
+    } catch (error: any) {
+      console.error('❌ [Controller] Failed to fetch real weather, using fallback:', error.message);
+      realWeather = undefined; // Will use toggle-based penalty as fallback
+    }
 
     // Convert ORS routes to our format with safety scores
     const routesWithScores = orsRoutes.map((orsRoute, index) => {
+      // Calculate distance in km
+      const distanceKm = Math.round((orsRoute.distance / 1000) * 10) / 10;
+      
+      // Calculate realistic travel time based on distance and vehicle speed
+      // Speed: walking = 5 km/h, car = 30 km/h
+      const speedKmPerHour = vehicleType === 'pedestrian' ? 5 : 30;
+      const timeMinutes = Math.round((distanceKm / speedKmPerHour) * 60);
+      
       // Create a route object for safety scoring
       const route = {
         routeId: `route_${index + 1}`,
         polyline: orsRoute.geometry,
-        base_time_min: Math.round(orsRoute.duration / 60),
-        distance_km: Math.round((orsRoute.distance / 1000) * 10) / 10,
+        base_time_min: timeMinutes, // Realistic time based on distance
+        distance_km: distanceKm,
         segments: [] as string[],
       };
 
-      // Calculate safety score
+      // Calculate safety score with user-controlled safety toggles and real weather
       const safetyScore = computeSafetyScore(
         route,
         weather,
         {
           vehicleType: vehicleType as 'car' | 'truck' | 'bike' | 'pedestrian',
           timeOfDay: timeOfDay as 'day' | 'night',
-        }
+        },
+        safetyToggles,
+        realWeather
       );
 
       return {
@@ -96,6 +129,15 @@ export async function getRoutes(req: Request, res: Response): Promise<void> {
         distance_km: route.distance_km,
         segments: route.segments,
         ...safetyScore,
+        // Include weather data for frontend display
+        weather: realWeather ? {
+          temperature: realWeather.temperature,
+          condition: realWeather.condition,
+          precipitation: realWeather.precipitation,
+          windSpeed: realWeather.windSpeed,
+          visibility: realWeather.visibility,
+          hourly: realWeather.hourly,
+        } : undefined,
       };
     });
 

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useStore } from '../store/useStore';
+import Card from './Card';
 
 export default function KPIPanel() {
   const { routes, selectedRouteId, weather, crowdDensities } = useStore();
@@ -24,98 +25,148 @@ export default function KPIPanel() {
     return data;
   }, [crowdDensities]);
 
-  const getWeatherEmoji = (condition?: string) => {
+  const getWeatherIcon = (condition?: string) => {
+    if (!condition) return 'ri-sun-line text-yellow-500';
     switch (condition) {
-      case 'clear':
-        return '☀️';
-      case 'rain':
-        return '🌧️';
-      case 'storm':
-        return '⛈️';
-      case 'fog':
-        return '🌫️';
-      default:
-        return '☀️';
+      case 'clear': return 'ri-sun-line text-yellow-500';
+      case 'rain': return 'ri-rainy-line text-blue-500';
+      case 'storm': return 'ri-thunderstorms-line text-purple-600';
+      case 'fog': return 'ri-foggy-line text-gray-400';
+      default: return 'ri-cloud-line text-gray-400';
     }
   };
 
   const getSafetyColor = (score?: number) => {
     if (!score) return 'text-gray-400';
-    if (score >= 70) return 'text-green-400';
-    if (score >= 50) return 'text-yellow-400';
-    return 'text-red-400';
+    if (score >= 75) return 'text-green-600';
+    if (score >= 50) return 'text-yellow-600';
+    return 'text-red-600';
   };
 
+  const getSafetyIcon = (score?: number) => {
+    if (!score) return 'ri-shield-line text-gray-400';
+    if (score >= 75) return 'ri-shield-check-line text-green-600';
+    if (score >= 50) return 'ri-shield-warning-line text-yellow-600';
+    return 'ri-shield-cross-line text-red-600';
+  };
+
+  if (!selectedRoute) {
+    return (
+      <div className="text-sm text-gray-500 text-center py-8">
+        Select a route to see details
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 border-b border-gray-700">
-      <h2 className="text-lg font-semibold mb-3">KPI Dashboard</h2>
-
-      {selectedRoute ? (
-        <div className="space-y-4">
-          <div className="p-3 bg-gray-800 rounded border border-gray-700">
-            <div className="text-sm text-gray-400 mb-1">Safety Score</div>
-            <div className={`text-3xl font-bold ${getSafetyColor(selectedRoute.final_safety_score)}`}>
-              {selectedRoute.final_safety_score.toFixed(1)}
-            </div>
-            <div className="text-xs text-gray-500 mt-1">
-              Route: {selectedRoute.routeId.toUpperCase()}
-            </div>
+    <div className="grid grid-cols-3 gap-4">
+      {/* Safety Score Card */}
+      <Card icon={getSafetyIcon(selectedRoute.final_safety_score)}>
+        <div className="mb-2">
+          <div className="text-sm font-medium text-gray-600 mb-1">Safety Score</div>
+          <div className={`text-4xl font-bold ${getSafetyColor(selectedRoute.final_safety_score)}`}>
+            {selectedRoute.final_safety_score.toFixed(1)}
           </div>
+        </div>
+        <div className="text-xs text-gray-500">
+          {selectedRoute.routeId.toUpperCase()}
+        </div>
+      </Card>
 
-          <div className="p-3 bg-gray-800 rounded border border-gray-700">
-            <div className="text-sm text-gray-400 mb-2">Current Weather</div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">{getWeatherEmoji(weather?.condition)}</span>
-              <div>
-                <div className="font-medium capitalize">{weather?.condition || 'Clear'}</div>
-                <div className="text-xs text-gray-400">
-                  Intensity: {weather ? (weather.intensity * 100).toFixed(0) : 0}%
-                </div>
+      {/* Weather Summary Card */}
+      <Card icon={getWeatherIcon(selectedRoute.weather?.condition || weather?.condition)}>
+        <div className="mb-2">
+          <div className="text-sm font-medium text-gray-600 mb-1">Weather</div>
+          {selectedRoute.weather ? (
+            <>
+              <div className="text-2xl font-bold text-gray-900">
+                {selectedRoute.weather.temperature.toFixed(1)}°C
               </div>
-            </div>
-          </div>
+              <div className="text-xs text-gray-500 capitalize mt-1">
+                {selectedRoute.weather.condition.replace('-', ' ')}
+              </div>
+              
+              {/* Hourly Forecast */}
+              {selectedRoute.weather.hourly && selectedRoute.weather.hourly.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <div className="text-xs font-medium text-gray-600 mb-2">Hourly Forecast</div>
+                  <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 transparent' }}>
+                    {selectedRoute.weather.hourly.slice(0, 12).map((hour, idx) => {
+                      const hourDate = new Date(hour.time);
+                      const hourStr = hourDate.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                      });
+                      return (
+                        <div
+                          key={idx}
+                          className="flex-shrink-0 flex flex-col items-center gap-1 px-2 py-2 bg-gray-50 rounded-lg min-w-[60px] hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="text-xs text-gray-500">{hourStr}</div>
+                          <i className={`text-lg ${getWeatherIcon(hour.condition)}`}></i>
+                          <div className="text-xs font-semibold text-gray-900">
+                            {hour.temperature.toFixed(0)}°
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="text-2xl font-bold text-gray-900 capitalize">
+                {weather?.condition || 'Clear'}
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Intensity: {weather ? (weather.intensity * 100).toFixed(0) : 0}%
+              </div>
+            </>
+          )}
+        </div>
+      </Card>
 
-          <div className="p-3 bg-gray-800 rounded border border-gray-700">
-            <div className="text-sm text-gray-400 mb-2">Crowd Trend</div>
-            <ResponsiveContainer width="100%" height={120}>
-              <LineChart data={crowdTrendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis
-                  dataKey="time"
-                  stroke="#9ca3af"
-                  fontSize={10}
-                  tick={{ fill: '#9ca3af' }}
-                />
-                <YAxis
-                  stroke="#9ca3af"
-                  fontSize={10}
-                  tick={{ fill: '#9ca3af' }}
-                  domain={[0, 100]}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1f2937',
-                    border: '1px solid #374151',
-                    borderRadius: '4px',
-                    color: '#fff',
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="density"
-                  stroke="#3b82f6"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+      {/* Crowd Trend Card */}
+      <Card icon="ri-group-line">
+        <div className="mb-2">
+          <div className="text-sm font-medium text-gray-600 mb-2">Crowd Trend</div>
+          <ResponsiveContainer width="100%" height={100}>
+            <LineChart data={crowdTrendData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis
+                dataKey="time"
+                stroke="#9ca3af"
+                fontSize={9}
+                tick={{ fill: '#6b7280' }}
+              />
+              <YAxis
+                stroke="#9ca3af"
+                fontSize={9}
+                tick={{ fill: '#6b7280' }}
+                domain={[0, 100]}
+                width={30}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="density"
+                stroke="#3b82f6"
+                strokeWidth={2}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-      ) : (
-        <div className="text-sm text-gray-400">
-          Select a route to see KPIs
-        </div>
-      )}
+      </Card>
     </div>
   );
 }

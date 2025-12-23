@@ -12,6 +12,19 @@ export interface Route {
   darkness_penalty: number;
   construction_penalty: number;
   final_safety_score: number;
+  weather?: {
+    temperature: number;
+    condition: string;
+    precipitation: number;
+    windSpeed: number;
+    visibility: number;
+    hourly?: {
+      time: string;
+      temperature: number;
+      condition: string;
+      weatherCode: number;
+    }[];
+  };
 }
 
 export interface WeatherState {
