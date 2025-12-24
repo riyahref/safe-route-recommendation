@@ -5,7 +5,7 @@ import { db } from '../firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function SearchPanel() {
-  const { vehicleType, timeOfDay, setRoutes, setOrigin, setDestination, setVehicleType, setTimeOfDay, setSelectedRouteId } = useStore();
+  const { vehicleType, timeOfDay, darknessToggle, setRoutes, setOrigin, setDestination, setVehicleType, setTimeOfDay, setSelectedRouteId } = useStore();
   const [originInput, setOriginInput] = useState('40.7128,-74.0060');
   const [destInput, setDestInput] = useState('40.7580,-73.9855');
   const [loading, setLoading] = useState(false);
@@ -28,7 +28,9 @@ export default function SearchPanel() {
       setDestination(dest);
       setLoading(true);
 
-      const routes = await fetchRoutes(origin, dest, vehicleType, timeOfDay);
+      const routes = await fetchRoutes(origin, dest, vehicleType, timeOfDay, {
+        darkness: darknessToggle,
+      });
       
       // Auto-select safest route (highest safety score)
       if (routes && routes.length > 0) {
@@ -86,43 +88,43 @@ export default function SearchPanel() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+      <h2 className="text-lg font-semibold text-[#EAEAEA] flex items-center gap-2">
         <i className="ri-search-line text-blue-600"></i>
         Search Routes
       </h2>
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Origin (lat,lng)</label>
+          <label className="block text-sm font-medium text-[#B5B5B5] mb-2">Origin (lat,lng)</label>
           <input
             type="text"
             value={originInput}
             onChange={(e) => setOriginInput(e.target.value)}
-            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-[#EAEAEA] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             placeholder="40.7128,-74.0060"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Destination (lat,lng)</label>
+          <label className="block text-sm font-medium text-[#B5B5B5] mb-2">Destination (lat,lng)</label>
           <input
             type="text"
             value={destInput}
             onChange={(e) => setDestInput(e.target.value)}
-            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-[#EAEAEA] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
             placeholder="40.7580,-73.9855"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-medium text-[#B5B5B5] mb-2 flex items-center gap-2">
             <i className="ri-route-line"></i>
             Vehicle Type
           </label>
           <select
             value={vehicleType}
             onChange={(e) => setVehicleType(e.target.value as any)}
-            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-[#EAEAEA] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           >
             <option value="car">Car</option>
             <option value="truck">Truck</option>
@@ -135,14 +137,14 @@ export default function SearchPanel() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+          <label className="block text-sm font-medium text-[#B5B5B5] mb-2 flex items-center gap-2">
             <i className="ri-time-line"></i>
             Time of Day
           </label>
           <select
             value={timeOfDay}
             onChange={(e) => setTimeOfDay(e.target.value as any)}
-            className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-[#EAEAEA] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
           >
             <option value="day">Day</option>
             <option value="night">Night</option>

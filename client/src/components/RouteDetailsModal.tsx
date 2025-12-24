@@ -37,7 +37,7 @@ export default function RouteDetailsModal({ routeId, onClose }: RouteDetailsModa
         <div className="space-y-4">
           <div className="p-4 bg-gray-800 rounded border border-gray-700">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-gray-400">Safety Score</span>
+              <span className="text-[#B5B5B5]">Safety Score</span>
               <div className="flex items-center gap-2">
                 <span className={`text-3xl font-bold ${getSafetyColor(route.final_safety_score)}`}>
                   {route.final_safety_score.toFixed(1)}
@@ -58,39 +58,39 @@ export default function RouteDetailsModal({ routeId, onClose }: RouteDetailsModa
 
           <div className="grid grid-cols-2 gap-4">
             <div className="p-3 bg-gray-800 rounded border border-gray-700">
-              <div className="text-sm text-gray-400 mb-1">Time</div>
-              <div className="text-lg font-semibold">{route.base_time_min} min</div>
+              <div className="text-sm text-[#B5B5B5] mb-1">Time</div>
+              <div className="text-lg font-semibold text-[#EAEAEA]">{route.base_time_min} min</div>
             </div>
             <div className="p-3 bg-gray-800 rounded border border-gray-700">
-              <div className="text-sm text-gray-400 mb-1">Distance</div>
-              <div className="text-lg font-semibold">{route.distance_km} km</div>
+              <div className="text-sm text-[#B5B5B5] mb-1">Distance</div>
+              <div className="text-lg font-semibold text-[#EAEAEA]">{route.distance_km} km</div>
             </div>
           </div>
 
           <div className="p-4 bg-gray-800 rounded border border-gray-700">
-            <div className="text-sm font-semibold mb-3">Score Breakdown</div>
+            <div className="text-sm font-semibold mb-3 text-[#EAEAEA]">Score Breakdown</div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-gray-400">Base Score:</span>
-                <span>{route.base_score.toFixed(1)}</span>
+                <span className="text-[#B5B5B5]">Base Score:</span>
+                <span className="text-[#EAEAEA]">{route.base_score.toFixed(1)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Weather Penalty:</span>
+                <span className="text-[#B5B5B5]">Weather Penalty:</span>
                 <span className="text-red-400">-{route.weather_penalty.toFixed(1)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Crowd:</span>
+                <span className="text-[#B5B5B5]">Crowd:</span>
                 <span className={route.crowd_penalty >= 0 ? 'text-green-400' : 'text-red-400'}>
                   {route.crowd_penalty >= 0 ? '+' : ''}{route.crowd_penalty.toFixed(1)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-400">Darkness Penalty:</span>
+                <span className="text-[#B5B5B5]">Darkness Penalty:</span>
                 <span className="text-red-400">-{route.darkness_penalty.toFixed(1)}</span>
               </div>
               {route.construction_penalty > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Construction:</span>
+                  <span className="text-[#B5B5B5]">Construction:</span>
                   <span className="text-red-400">-{route.construction_penalty.toFixed(1)}</span>
                 </div>
               )}
@@ -98,8 +98,8 @@ export default function RouteDetailsModal({ routeId, onClose }: RouteDetailsModa
           </div>
 
           <div className="p-3 bg-gray-800 rounded border border-gray-700">
-            <div className="text-sm text-gray-400 mb-1">Segments</div>
-            <div className="text-sm">{route.segments.join(', ')}</div>
+            <div className="text-sm text-[#B5B5B5] mb-1">Segments</div>
+            <div className="text-sm text-[#EAEAEA]">{route.segments.join(', ')}</div>
           </div>
 
           <button

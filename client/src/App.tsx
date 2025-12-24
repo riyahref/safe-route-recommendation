@@ -17,38 +17,38 @@ function App() {
   }, []);
 
   return (
-    <div className="flex h-screen w-screen bg-slate-950 text-slate-100">
+    <div className="flex h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden">
       {/* Left Column - Search Panel */}
-      <div className="w-80 bg-slate-900/80 border-r border-slate-800 flex flex-col overflow-y-auto backdrop-blur">
-        <div className="p-6 border-b border-slate-800">
-          <h1 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+      <div className="w-64 bg-slate-900/80 border-r border-slate-800 flex flex-col backdrop-blur">
+        <div className="p-6 border-b border-slate-800 flex-shrink-0">
+          <h1 className="text-2xl font-bold text-[#EAEAEA] flex items-center gap-2">
             <i className="ri-route-line text-cyan-400"></i>
-            Safety Routing
+            Canopy
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-[#B5B5B5] mt-1">
             Real-time adaptive routing
           </p>
         </div>
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto flex-1">
           <SearchPanel />
         </div>
       </div>
 
       {/* Middle Column - Route Cards */}
-      <div className="w-96 bg-slate-900/70 border-r border-slate-800 flex flex-col overflow-y-auto backdrop-blur">
-        <div className="p-6">
+      <div className="w-80 bg-slate-900/70 border-r border-slate-800 flex flex-col backdrop-blur">
+        <div className="p-6 overflow-y-auto flex-1">
           <RouteComparisonPanel />
         </div>
       </div>
 
-      {/* Right Column - Map + Bottom Cards */}
-      <div className="flex-1 flex flex-col bg-slate-950">
-        {/* Map Container */}
-        <div className="flex-[1.2] relative">
+      {/* Right Column - Map + Bottom Cards - Scrollable */}
+      <div className="flex-1 flex flex-col bg-slate-950 min-w-0 overflow-y-auto">
+        {/* Map Container - Fixed height, doesn't shrink */}
+        <div className="h-[65vh] relative flex-shrink-0 min-h-[500px]">
           <MapView />
         </div>
         
-        {/* Bottom Info Cards */}
+        {/* Bottom Info Cards - Scrollable content below map */}
         <div className="p-6 border-t border-slate-800 bg-slate-900/80 backdrop-blur">
           <KPIPanel />
         </div>

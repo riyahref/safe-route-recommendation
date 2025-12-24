@@ -59,6 +59,7 @@ interface AppState {
   crowdDensities: Map<string, CrowdDensity>;
   vehiclePosition: VehiclePosition | null;
   mockApiPayloads: any;
+  darknessToggle: boolean;
 }
 
 interface AppActions {
@@ -72,6 +73,7 @@ interface AppActions {
   setCrowdDensity: (density: CrowdDensity) => void;
   setVehiclePosition: (position: VehiclePosition) => void;
   setMockApiPayloads: (payloads: any) => void;
+  setDarknessToggle: (enabled: boolean) => void;
 }
 
 export const useStore = create<AppState & AppActions>((set: any) => ({
@@ -85,6 +87,7 @@ export const useStore = create<AppState & AppActions>((set: any) => ({
   crowdDensities: new Map(),
   vehiclePosition: null,
   mockApiPayloads: null,
+  darknessToggle: false,
 
   setRoutes: (routes: Route[]) => set({ routes }),
   setSelectedRouteId: (routeId: string | null) => set({ selectedRouteId: routeId }),
@@ -103,5 +106,6 @@ export const useStore = create<AppState & AppActions>((set: any) => ({
     }),
   setVehiclePosition: (vehiclePosition: VehiclePosition) => set({ vehiclePosition }),
   setMockApiPayloads: (mockApiPayloads: any) => set({ mockApiPayloads }),
+  setDarknessToggle: (darknessToggle: boolean) => set({ darknessToggle }),
 }));
 

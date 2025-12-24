@@ -64,11 +64,20 @@ export function computeSafetyScore(
   const distanceKm = route.distance_km;
   const polylineLength = route.polyline?.length || 0;
 
-  // 1. Crowd Penalty (only if toggle enabled)
-  // If route distance > 7km → 20, Else → 10
+  // 1. Crowd Penalty - Add variation based on route characteristics
+  // Base crowd value varies by route (simulated crowd density)
+  // If toggle enabled, apply penalty; otherwise show base crowd value
   let crowd_penalty = 0;
+  // Simulate different crowd levels per route (based on distance and route index)
+  const routeHash = (distanceKm * 100 + polylineLength) % 100;
+  const baseCrowdValue = Math.round((routeHash / 100) * 15 - 5); // Range: -5 to +10
+  
   if (toggles.crowdSpike) {
+    // If toggle enabled, apply penalty
     crowd_penalty = distanceKm > 7 ? 20 : 10;
+  } else {
+    // If toggle not enabled, show base crowd value (can be positive or negative)
+    crowd_penalty = baseCrowdValue;
   }
 
   // 2. Darkness Penalty (only if toggle enabled)

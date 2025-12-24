@@ -6,17 +6,14 @@ import Card from './Card';
 export default function RouteComparisonPanel() {
   const { routes, selectedRouteId, setSelectedRouteId } = useStore();
 
-  if (routes.length === 0) {
-    return (
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
-          <i className="ri-route-line text-blue-600"></i>
-          Route Comparison
-        </h2>
-        <p className="text-sm text-gray-500">Search for routes to see options</p>
-      </div>
-    );
-  }
+  // Show placeholder cards when no routes exist
+  const displayRoutes = routes.length === 0 
+    ? [
+        { routeId: 'route_1', base_score: 0, weather_penalty: 0, crowd_penalty: 0, darkness_penalty: 0, construction_penalty: 0, final_safety_score: 0, base_time_min: 0, distance_km: 0, weather: undefined },
+        { routeId: 'route_2', base_score: 0, weather_penalty: 0, crowd_penalty: 0, darkness_penalty: 0, construction_penalty: 0, final_safety_score: 0, base_time_min: 0, distance_km: 0, weather: undefined },
+        { routeId: 'route_3', base_score: 0, weather_penalty: 0, crowd_penalty: 0, darkness_penalty: 0, construction_penalty: 0, final_safety_score: 0, base_time_min: 0, distance_km: 0, weather: undefined },
+      ]
+    : routes;
 
   const getSafetyColor = (score: number) => {
     if (score >= 75) return 'text-green-600';
@@ -68,20 +65,21 @@ export default function RouteComparisonPanel() {
 
   return (
     <div>
-      <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+      <h2 className="text-lg font-semibold text-[#EAEAEA] mb-4 flex items-center gap-2">
         <i className="ri-route-line text-blue-600"></i>
         Route Options
       </h2>
       <div className="space-y-4">
-        {routes.map((route) => {
+        {displayRoutes.map((route) => {
+          const isEmpty = routes.length === 0;
           const isSelected = selectedRouteId === route.routeId;
           const isSafest = route.routeId === safestRouteId;
           
           return (
             <Card
               key={route.routeId}
-              selected={isSelected}
-              onClick={() => setSelectedRouteId(route.routeId)}
+              selected={isSelected && !isEmpty}
+              onClick={isEmpty ? undefined : () => setSelectedRouteId(route.routeId)}
               icon="ri-route-line"
             >
               {/* Header */}
@@ -91,8 +89,8 @@ export default function RouteComparisonPanel() {
                     <span className="font-bold text-blue-600">{route.routeId.replace('route_', '')}</span>
                   </div>
                   <div>
-                    <div className="font-semibold text-gray-900">{route.routeId.toUpperCase()}</div>
-                    {isSafest && (
+                    <div className="font-semibold text-[#EAEAEA]">{route.routeId.toUpperCase()}</div>
+                    {isSafest && !isEmpty && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-semibold rounded-lg mt-1">
                         <i className="ri-star-fill"></i>
                         Best Route
@@ -101,9 +99,9 @@ export default function RouteComparisonPanel() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <i className={getSafetyIcon(route.final_safety_score)}></i>
-                  <span className={`text-2xl font-bold ${getSafetyColor(route.final_safety_score)}`}>
-                    {route.final_safety_score.toFixed(1)}
+                  <i className={isEmpty ? 'ri-shield-line text-[#9CA3AF]' : getSafetyIcon(route.final_safety_score)}></i>
+                  <span className={`text-2xl font-bold ${isEmpty ? 'text-[#9CA3AF]' : getSafetyColor(route.final_safety_score)}`}>
+                    {isEmpty ? '0.0' : route.final_safety_score.toFixed(1)}
                   </span>
                 </div>
               </div>
@@ -111,26 +109,26 @@ export default function RouteComparisonPanel() {
               {/* Route Info */}
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="flex items-center gap-2 text-sm">
-                  <i className="ri-time-line text-gray-400"></i>
-                  <span className="text-gray-600">{route.base_time_min} min</span>
+                  <i className="ri-time-line text-[#9CA3AF]"></i>
+                  <span className="text-[#B5B5B5]">{isEmpty ? '0' : route.base_time_min} min</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
-                  <i className="ri-map-pin-distance-line text-gray-400"></i>
-                  <span className="text-gray-600">{route.distance_km} km</span>
+                  <i className="ri-map-pin-distance-line text-[#9CA3AF]"></i>
+                  <span className="text-[#B5B5B5]">{isEmpty ? '0' : route.distance_km} km</span>
                 </div>
               </div>
 
               {/* Weather Info */}
-              {route.weather && (
-                <div className="mb-4 p-3 bg-gray-50 rounded-xl">
+              {(route.weather || isEmpty) && (
+                <div className="mb-4 p-3 bg-slate-800/50 rounded-xl">
                   <div className="flex items-center gap-3">
-                    <i className={`text-2xl ${getWeatherIcon(route.weather.condition)}`}></i>
+                    <i className={`text-2xl ${isEmpty ? 'ri-cloud-line text-[#9CA3AF]' : getWeatherIcon(route.weather?.condition)}`}></i>
                     <div className="flex-1">
-                      <div className="font-semibold text-gray-900">
-                        {route.weather.temperature.toFixed(1)}°C
+                      <div className="font-semibold text-[#EAEAEA]">
+                        {isEmpty ? '0.0' : route.weather?.temperature.toFixed(1) || '0.0'}°C
                       </div>
-                      <div className="text-xs text-gray-500 capitalize">
-                        {route.weather.condition.replace('-', ' ')}
+                      <div className="text-xs text-[#B5B5B5] capitalize">
+                        {isEmpty ? 'No data' : route.weather?.condition.replace('-', ' ') || 'No data'}
                       </div>
                     </div>
                   </div>
@@ -152,33 +150,33 @@ export default function RouteComparisonPanel() {
 
               {/* Safety Breakdown */}
               <div className="space-y-2 mb-4 text-xs">
-                <div className="flex justify-between items-center py-1 border-b border-gray-100">
-                  <span className="text-gray-600">Base Score</span>
-                  <span className="font-medium text-gray-900">{route.base_score.toFixed(1)}</span>
+                <div className="flex justify-between items-center py-1 border-b border-slate-700">
+                  <span className="text-[#B5B5B5]">Base Score</span>
+                  <span className="font-medium text-[#EAEAEA]">{isEmpty ? '0.0' : route.base_score.toFixed(1)}</span>
                 </div>
-                <div className="flex justify-between items-center py-1 border-b border-gray-100">
-                  <span className="text-gray-600 flex items-center gap-1">
+                <div className="flex justify-between items-center py-1 border-b border-slate-700">
+                  <span className="text-[#B5B5B5] flex items-center gap-1">
                     <i className="ri-rainy-line"></i>
                     Weather
                   </span>
-                  <span className="font-medium text-red-600">-{route.weather_penalty.toFixed(1)}</span>
+                  <span className="font-medium text-red-400">-{isEmpty ? '0.0' : route.weather_penalty.toFixed(1)}</span>
                 </div>
-                <div className="flex justify-between items-center py-1 border-b border-gray-100">
-                  <span className="text-gray-600 flex items-center gap-1">
+                <div className="flex justify-between items-center py-1 border-b border-slate-700">
+                  <span className="text-[#B5B5B5] flex items-center gap-1">
                     <i className="ri-group-line"></i>
                     Crowd
                   </span>
-                  <span className={`font-medium ${route.crowd_penalty >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {route.crowd_penalty >= 0 ? '+' : ''}{route.crowd_penalty.toFixed(1)}
+                  <span className={`font-medium ${isEmpty ? 'text-[#9CA3AF]' : route.crowd_penalty >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {isEmpty ? '0.0' : (route.crowd_penalty >= 0 ? '+' : '') + route.crowd_penalty.toFixed(1)}
                   </span>
                 </div>
-                {route.construction_penalty > 0 && (
-                  <div className="flex justify-between items-center py-1 border-b border-gray-100">
-                    <span className="text-gray-600 flex items-center gap-1">
+                {(isEmpty || route.construction_penalty > 0) && (
+                  <div className="flex justify-between items-center py-1 border-b border-slate-700">
+                    <span className="text-[#B5B5B5] flex items-center gap-1">
                       <i className="ri-alert-line"></i>
                       Construction
                     </span>
-                    <span className="font-medium text-red-600">-{route.construction_penalty.toFixed(1)}</span>
+                    <span className="font-medium text-red-400">-{isEmpty ? '0.0' : route.construction_penalty.toFixed(1)}</span>
                   </div>
                 )}
               </div>
@@ -186,16 +184,22 @@ export default function RouteComparisonPanel() {
               {/* Select Button */}
               <button
                 onClick={(e) => {
+                  if (isEmpty) return;
                   e.stopPropagation();
                   setSelectedRouteId(route.routeId);
                 }}
+                disabled={isEmpty}
                 className={`w-full px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  isSelected
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  isEmpty
+                    ? 'bg-slate-800/50 text-[#9CA3AF] cursor-not-allowed'
+                    : isSelected
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/50 box-shadow-[0_0_18px_rgba(59,130,246,0.6)]'
+                    : 'bg-slate-800 text-[#EAEAEA] hover:bg-slate-700'
                 }`}
               >
-                {isSelected ? (
+                {isEmpty ? (
+                  'Search routes to enable'
+                ) : isSelected ? (
                   <span className="flex items-center justify-center gap-2">
                     <i className="ri-check-line"></i>
                     Selected
